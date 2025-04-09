@@ -1,6 +1,6 @@
 import express from "express";
-import { getSongsForEmotion } from "../services/spotify.js";
 const router = express.Router();
+import { getSongsForEmotion } from "../services/spotify.js";
 
 router.post("/", async (req, res) => {
     const { emotion } = req.body;
@@ -14,4 +14,4 @@ router.post("/", async (req, res) => {
   });
   
 
-export { router as emotionRoute };
+export default router ;
