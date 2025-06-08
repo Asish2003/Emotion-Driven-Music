@@ -12,3 +12,12 @@
     <li>Run your backend:- node index.js</li>
     <li>Run your python main.ipynb cell 1 code.</li>
 </ol>
+
+# Reason to stop future progress
+<b><p>As DeepFace universal emotion were used , we have realised that this project could only be usefull with:-</b></p>
+<ul>
+    <li>PAD(Pleasure-Arousal-Dominance</li>
+    <li>VAD(Valance-Arousal-Dominance</li>
+    <li>CPM(Component Process Model</li>
+    <li>And many other emotion detection model.</li>
+</ul>
