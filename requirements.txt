@@ -1,7 +1,6 @@
 streamlit
-numpy
+tensorflow
+opencv-python-headless
 pillow
 requests
-deepface
-opencv-python-headless
-tensorflow
+numpy
