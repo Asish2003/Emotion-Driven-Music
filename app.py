@@ -1,85 +1,85 @@
-import streamlit as st
-import numpy as np
-from PIL import Image
 import os
-import requests
-import base64
+import cv2
+import numpy as np
+import streamlit as st
+import requests, base64
+from PIL import Image
+from tensorflow.keras.models import load_model
 
-# ----------------------------
-# Dummy emotion classifier (replace with ML model)
-# ----------------------------
-def predict_emotion(image):
-    emotions = ["Happy", "Sad", "Angry", "Surprised", "Neutral"]
-    return np.random.choice(emotions)
+# ========================
+# Spotify API Setup
+# ========================
+CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID")
+CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET")
 
-# ----------------------------
-# Spotify Authentication (Client Credentials Flow)
-# ----------------------------
+@st.cache_resource
 def get_spotify_token():
-    client_id = os.environ.get("SPOTIFY_CLIENT_ID")
-    client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET")
-    
+    """Get Spotify API token"""
     auth_url = "https://accounts.spotify.com/api/token"
-    auth_header = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode("ascii")
-    
-    response = requests.post(auth_url, 
+    auth_header = base64.b64encode(f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode("ascii")
+
+    response = requests.post(auth_url,
                              headers={"Authorization": f"Basic {auth_header}"},
                              data={"grant_type": "client_credentials"})
-    
     return response.json().get("access_token")
 
-def search_spotify(track_query, token):
-    url = "https://api.spotify.com/v1/search"
-    headers = {"Authorization": f"Bearer {token}"}
-    params = {"q": track_query, "type": "track", "limit": 1}
-    response = requests.get(url, headers=headers, params=params)
-    data = response.json()
-    if "tracks" in data and len(data["tracks"]["items"]) > 0:
-        return data["tracks"]["items"][0]["external_urls"]["spotify"]
-    return None
+def get_songs_from_spotify(query):
+    """Search Spotify songs by emotion"""
+    token = get_spotify_token()
+    url = f"https://api.spotify.com/v1/search?q={query}&type=track&limit=5"
+    response = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+    results = response.json()
+    
+    songs = []
+    if "tracks" in results:
+        for item in results["tracks"]["items"]:
+            songs.append({
+                "name": item["name"],
+                "artist": item["artists"][0]["name"],
+                "url": item["external_urls"]["spotify"]
+            })
+    return songs
 
-# ----------------------------
-# Map emotions to keywords
-# ----------------------------
-emotion_keywords = {
-    "Happy": "feel good upbeat",
-    "Sad": "sad emotional",
-    "Angry": "rock metal angry",
-    "Surprised": "party dance surprise",
-    "Neutral": "chill lofi relax"
-}
+# ========================
+# Load Emotion Model
+# ========================
+@st.cache_resource
+def load_emotion_model():
+    return load_model("emotion_model.h5")  # make sure this file is in repo
 
-# ----------------------------
+emotion_model = load_emotion_model()
+emotion_labels = ["Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral"]
+
+# ========================
 # Streamlit UI
-# ----------------------------
-st.set_page_config(page_title="Emotion Driven Music", page_icon="🎶")
+# ========================
+st.title("🎭 Emotion Driven Music 🎵")
+st.write("Upload a photo → Detect emotion → Get Spotify music suggestions")
 
-st.title("🎶 Emotion-Driven Music Player with Spotify")
-st.write("Upload an image or take a photo to detect your emotion and suggest Spotify tracks!")
+uploaded_file = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
 
-# Upload or take photo
-uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
-camera_image = st.camera_input("Or take a photo")
+if uploaded_file is not None:
+    image = Image.open(uploaded_file).convert("RGB")
+    st.image(image, caption="Uploaded Image", use_column_width=True)
 
-img = None
-if uploaded_file:
-    img = Image.open(uploaded_file)
-elif camera_image:
-    img = Image.open(camera_image)
-
-if img is not None:
-    st.image(img, caption="Uploaded Image", use_column_width=True)
+    # Convert to OpenCV format
+    img_array = np.array(image)
+    gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+    resized = cv2.resize(gray, (48, 48))
+    normalized = resized / 255.0
+    reshaped = np.reshape(normalized, (1, 48, 48, 1))
 
     # Predict emotion
-    emotion = predict_emotion(img)
-    st.subheader(f"Detected Emotion: {emotion}")
+    prediction = emotion_model.predict(reshaped)
+    emotion = emotion_labels[np.argmax(prediction)]
+    
+    st.subheader(f"😊 Detected Emotion: {emotion}")
 
-    # Get Spotify track
-    token = get_spotify_token()
-    query = emotion_keywords.get(emotion, "chill")
-    track_url = search_spotify(query, token)
-
-    if track_url:
-        st.markdown(f"🎧 Here's a Spotify suggestion for your mood: [Open in Spotify]({track_url})")
+    # Get Spotify songs
+    st.write("🎶 Suggested Songs:")
+    songs = get_songs_from_spotify(emotion)
+    if songs:
+        for s in songs:
+            st.markdown(f"- 🎵 [{s['name']} - {s['artist']}]({s['url']})")
     else:
-        st.warning("No tracks found. Try again.")
+        st.warning("No songs found. Try again!")
